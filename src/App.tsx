@@ -1,30 +1,6 @@
 import { useMemo, useState } from 'react'
 import './App.css'
 
-type ViewConfig = {
-  id: string
-  label: string
-  description: string
-}
-
-const VIEWS: ViewConfig[] = [
-  {
-    id: 'loyalty',
-    label: 'Loyalty',
-    description: 'Rewards and loyalty program configuration.',
-  },
-  {
-    id: 'transactions',
-    label: 'Transactions',
-    description: 'Payment history and transaction monitoring.',
-  },
-  {
-    id: 'terminal-customization',
-    label: 'Terminal customization',
-    description: 'Branding, receipts, and terminal settings.',
-  },
-]
-
 const LANGUAGES = [
   { value: 'en', label: 'English' },
   { value: 'ar', label: 'Arabic' },
@@ -35,7 +11,7 @@ const DEFAULT_BASE_URL =
 
 const DEFAULT_LANGUAGE = import.meta.env.VITE_VENDOR_PORTAL_LANG ?? 'en'
 
-const buildIframeUrl = (baseUrl: string, view: string, lang: string) => {
+const buildIframeUrl = (baseUrl: string, lang: string) => {
   if (!baseUrl) {
     return ''
   }
@@ -43,7 +19,6 @@ const buildIframeUrl = (baseUrl: string, view: string, lang: string) => {
   try {
     const url = new URL(baseUrl)
     url.searchParams.set('lang', lang)
-    url.searchParams.set('view', view)
     url.searchParams.set('embed', '1')
     return url.toString()
   } catch {
@@ -54,22 +29,18 @@ const buildIframeUrl = (baseUrl: string, view: string, lang: string) => {
 function App() {
   const [baseUrl, setBaseUrl] = useState(DEFAULT_BASE_URL)
   const [language, setLanguage] = useState(DEFAULT_LANGUAGE)
-  const [activeView, setActiveView] = useState(VIEWS[0].id)
 
   const trimmedBaseUrl = baseUrl.trim()
   const iframeUrl = useMemo(
-    () => buildIframeUrl(trimmedBaseUrl, activeView, language),
-    [trimmedBaseUrl, activeView, language]
+    () => buildIframeUrl(trimmedBaseUrl, language),
+    [trimmedBaseUrl, language]
   )
-
-  const activeViewConfig =
-    VIEWS.find((view) => view.id === activeView) ?? VIEWS[0]
 
   const validationMessage =
     trimmedBaseUrl.length === 0
-      ? 'Enter a staging base URL to load the iframe.'
+      ? 'Enter the URL to load the iframe.'
       : iframeUrl.length === 0
-        ? 'Base URL must be a full URL (include https://).'
+        ? 'URL must be a full URL (include https://).'
         : ''
 
   return (
@@ -79,20 +50,19 @@ function App() {
           <p className="eyebrow">Zeal vendor portal</p>
           <h1>Iframe embedding POC</h1>
           <p className="subtitle">
-            Test vendor portal pages embedded in an iframe with view and
-            language parameters.
+            Test vendor portal pages embedded in an iframe with language
+            parameters.
           </p>
         </div>
         <div className="tags">
           <span className="tag">embed=1</span>
-          <span className="tag">view param</span>
           <span className="tag">lang param</span>
         </div>
       </header>
 
       <section className="controls">
         <label className="field">
-          <span className="fieldLabel">Staging base URL</span>
+          <span className="fieldLabel">URL</span>
           <input
             type="url"
             value={baseUrl}
@@ -100,7 +70,7 @@ function App() {
             placeholder="https://staging.vendor-portal.example.com"
           />
           <span className="fieldHint">
-            Root URL for the vendor portal app (include https://).
+            Full URL for the vendor portal app (include https://).
           </span>
         </label>
 
@@ -130,27 +100,13 @@ function App() {
         </div>
       </section>
 
-      <div className="tabs" role="tablist" aria-label="Vendor portal views">
-        {VIEWS.map((view) => (
-          <button
-            key={view.id}
-            type="button"
-            role="tab"
-            aria-selected={view.id === activeView}
-            data-active={view.id === activeView}
-            className="tabButton"
-            onClick={() => setActiveView(view.id)}
-          >
-            {view.label}
-          </button>
-        ))}
-      </div>
-
       <section className="panel">
         <div className="panelHeader">
           <div>
-            <h2>{activeViewConfig.label}</h2>
-            <p className="panelDescription">{activeViewConfig.description}</p>
+            <h2>Iframe URL</h2>
+            <p className="panelDescription">
+              Generated from the URL input without overriding subpaths.
+            </p>
           </div>
           {iframeUrl ? (
             <a href={iframeUrl} target="_blank" rel="noreferrer">
@@ -169,7 +125,7 @@ function App() {
             key={iframeUrl}
             className="iframe"
             src={iframeUrl}
-            title={`${activeViewConfig.label} view`}
+            title="Vendor portal iframe"
           />
         ) : (
           <div className="emptyState">

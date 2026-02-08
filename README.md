@@ -23,7 +23,7 @@ npm run dev
 Create a `.env` file if you want defaults:
 
 ```bash
-VITE_VENDOR_PORTAL_BASE_URL=https://staging.vendor-portal.example.com
+VITE_VENDOR_PORTAL_BASE_URL=https://d3a3kjd3wcvpce.cloudfront.net
 VITE_VENDOR_PORTAL_LANG=en
 ```
 
