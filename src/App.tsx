@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import './App.css'
 
 const LANGUAGES = [
@@ -11,13 +11,52 @@ const DEFAULT_BASE_URL =
 
 const DEFAULT_LANGUAGE = import.meta.env.VITE_VENDOR_PORTAL_LANG ?? 'en'
 
-const buildIframeUrl = (baseUrl: string, lang: string) => {
+const SECTIONS = [
+  {
+    id: 'customers',
+    label: 'Customers',
+    subtabs: [
+      { id: 'overview', label: 'Overview', path: '/customers/overview' },
+      { id: 'exports', label: 'Exports', path: '/customers/exports' },
+    ],
+  },
+  {
+    id: 'transactions',
+    label: 'Transactions',
+    subtabs: [
+      { id: 'overview', label: 'Overview', path: '/transactions/list' },
+      { id: 'exports', label: 'Exports', path: '/transactions/downloads' },
+    ],
+  },
+  {
+    id: 'card-machines',
+    label: 'Card machines',
+    subtabs: [
+      {
+        id: 'all',
+        label: 'All card machines',
+        path: '/card-machines/card-machines',
+      },
+      {
+        id: 'customise',
+        label: 'Customise',
+        path: '/card-machines/customise',
+      },
+    ],
+  },
+] as const
+
+type Section = (typeof SECTIONS)[number]
+type Subtab = Section['subtabs'][number]
+
+const buildIframeUrl = (baseUrl: string, path: string, lang: string) => {
   if (!baseUrl) {
     return ''
   }
 
   try {
     const url = new URL(baseUrl)
+    url.pathname = path.startsWith('/') ? path : `/${path}`
     url.searchParams.set('lang', lang)
     url.searchParams.set('embed', '1')
     return url.toString()
@@ -29,11 +68,25 @@ const buildIframeUrl = (baseUrl: string, lang: string) => {
 function App() {
   const [baseUrl, setBaseUrl] = useState(DEFAULT_BASE_URL)
   const [language, setLanguage] = useState(DEFAULT_LANGUAGE)
+  const [activeSectionId, setActiveSectionId] =
+    useState<Section['id']>('customers')
+  const [activeSubtabId, setActiveSubtabId] =
+    useState<Subtab['id']>('overview')
+
+  const iframeRef = useRef<HTMLIFrameElement | null>(null)
 
   const trimmedBaseUrl = baseUrl.trim()
+
+  const currentSection: Section =
+    SECTIONS.find((section) => section.id === activeSectionId) ?? SECTIONS[0]
+
+  const currentSubtab: Subtab =
+    currentSection.subtabs.find((subtab) => subtab.id === activeSubtabId) ??
+    currentSection.subtabs[0]
+
   const iframeUrl = useMemo(
-    () => buildIframeUrl(trimmedBaseUrl, language),
-    [trimmedBaseUrl, language]
+    () => buildIframeUrl(trimmedBaseUrl, currentSubtab.path, language),
+    [trimmedBaseUrl, currentSubtab.path, language]
   )
 
   const validationMessage =
@@ -43,97 +96,143 @@ function App() {
         ? 'URL must be a full URL (include https://).'
         : ''
 
+  const handleSectionClick = (section: Section) => {
+    setActiveSectionId(section.id)
+    setActiveSubtabId(section.subtabs[0]?.id ?? 'overview')
+  }
+
+  const handleSubtabClick = (section: Section, subtab: Subtab) => {
+    setActiveSectionId(section.id)
+    setActiveSubtabId(subtab.id)
+  }
+
+  useEffect(() => {
+    if (!trimmedBaseUrl) return
+
+    let vendorOrigin: string
+    try {
+      vendorOrigin = new URL(trimmedBaseUrl).origin
+    } catch {
+      return
+    }
+
+    const handleMessage = (event: MessageEvent) => {
+      if (event.origin !== vendorOrigin) return
+      if (!event.data || typeof event.data !== 'object') return
+
+      const { type, url, lang } = event.data as {
+        type?: string
+        url?: string
+        lang?: string
+      }
+
+      console.log('Received message from iframe', { event, url, lang })
+
+      if (type === 'ZEAL_IFRAME_READY') {
+        const token = '<your-login-token-here>'
+
+        iframeRef.current?.contentWindow?.postMessage(
+          { type: 'ZEAL_IFRAME_TOKEN', token },
+          vendorOrigin
+        )
+      }
+    }
+
+    window.addEventListener('message', handleMessage)
+    return () => window.removeEventListener('message', handleMessage)
+  }, [trimmedBaseUrl])
+
   return (
     <div className="app">
-      <header className="header">
-        <div>
-          <p className="eyebrow">Zeal vendor portal</p>
-          <h1>Iframe embedding POC</h1>
-          <p className="subtitle">
-            Test vendor portal pages embedded in an iframe with language
-            parameters.
-          </p>
-        </div>
-        <div className="tags">
-          <span className="tag">embed=1</span>
-          <span className="tag">lang param</span>
-        </div>
-      </header>
+      <header className="topbar">
+        <input
+          className="navInput"
+          type="url"
+          value={baseUrl}
+          onChange={(event) => setBaseUrl(event.target.value)}
+          placeholder="https://staging.vendor-portal.example.com"
+        />
 
-      <section className="controls">
-        <label className="field">
-          <span className="fieldLabel">URL</span>
-          <input
-            type="url"
-            value={baseUrl}
-            onChange={(event) => setBaseUrl(event.target.value)}
-            placeholder="https://staging.vendor-portal.example.com"
-          />
-          <span className="fieldHint">
-            Full URL for the vendor portal app (include https://).
-          </span>
-        </label>
+        <select
+          className="navSelect"
+          value={language}
+          onChange={(event) => setLanguage(event.target.value)}
+        >
+          {LANGUAGES.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
 
-        <label className="field">
-          <span className="fieldLabel">Language</span>
-          <select
-            value={language}
-            onChange={(event) => setLanguage(event.target.value)}
-          >
-            {LANGUAGES.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-          <span className="fieldHint">
-            Sent as <code>lang</code> query parameter.
-          </span>
-        </label>
-
-        <div className="field">
-          <span className="fieldLabel">Embed indicator</span>
-          <div className="pill">embed=1</div>
-          <span className="fieldHint">
-            Lets the portal know it is rendered inside an iframe.
-          </span>
-        </div>
-      </section>
-
-      <section className="panel">
-        <div className="panelHeader">
-          <div>
-            <h2>Iframe URL</h2>
-            <p className="panelDescription">
-              Generated from the URL input without overriding subpaths.
-            </p>
+        <div className="topbarUrl">
+          <div className="urlPreview">
+            {iframeUrl ||
+              'Iframe URL will appear here once the base URL is valid.'}
           </div>
           {iframeUrl ? (
-            <a href={iframeUrl} target="_blank" rel="noreferrer">
-              Open in new tab
+            <a
+              href={iframeUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="openLink"
+            >
+              Open
             </a>
           ) : null}
         </div>
-        <div className="urlPreview">
-          {iframeUrl || 'Iframe URL will appear here once the base URL is valid.'}
-        </div>
-      </section>
+      </header>
 
-      <section className="iframeCard" role="tabpanel">
-        {iframeUrl ? (
-          <iframe
-            key={iframeUrl}
-            className="iframe"
-            src={iframeUrl}
-            title="Vendor portal iframe"
-          />
-        ) : (
-          <div className="emptyState">
-            <p className="emptyTitle">Iframe not loaded</p>
-            <p className="emptyHint">{validationMessage}</p>
-          </div>
-        )}
-      </section>
+      <div className="contentLayout">
+        <aside className="sidebar">
+          {SECTIONS.map((section) => (
+            <div key={section.id} className="sidebarSection">
+              <button
+                type="button"
+                className="sidebarSectionButton"
+                data-active={section.id === currentSection.id}
+                onClick={() => handleSectionClick(section)}
+              >
+                {section.label}
+              </button>
+              <div className="sidebarSubtabs">
+                {section.subtabs.map((subtab) => (
+                  <button
+                    key={subtab.id}
+                    type="button"
+                    className="sidebarSubtabButton"
+                    data-active={
+                      section.id === currentSection.id &&
+                      subtab.id === currentSubtab.id
+                    }
+                    onClick={() => handleSubtabClick(section, subtab)}
+                  >
+                    {subtab.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ))}
+        </aside>
+
+        <main className="iframeLayout" role="tabpanel">
+          {iframeUrl ? (
+            <iframe
+              key={iframeUrl}
+              className="iframe"
+              id="zeal-vendor-iframe"
+              ref={iframeRef}
+              src={iframeUrl}
+              title="Vendor portal iframe"
+            />
+          ) : (
+            <div className="emptyState">
+              <p className="emptyTitle">Iframe not loaded</p>
+              <p className="emptyHint">{validationMessage}</p>
+            </div>
+          )}
+        </main>
+      </div>
     </div>
   )
 }
