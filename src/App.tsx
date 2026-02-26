@@ -68,6 +68,8 @@ const buildIframeUrl = (baseUrl: string, path: string, lang: string) => {
 function App() {
   const [baseUrl, setBaseUrl] = useState(DEFAULT_BASE_URL)
   const [language, setLanguage] = useState(DEFAULT_LANGUAGE)
+  const [token, setToken] = useState('')
+  const [merchantId, setMerchantId] = useState('')
   const [activeSectionId, setActiveSectionId] =
     useState<Section['id']>('customers')
   const [activeSubtabId, setActiveSubtabId] =
@@ -129,10 +131,8 @@ function App() {
       console.log('Received message from iframe', { event, url, lang })
 
       if (type === 'ZEAL_IFRAME_READY') {
-        const token = '<your-login-token-here>'
-
         iframeRef.current?.contentWindow?.postMessage(
-          { type: 'ZEAL_IFRAME_TOKEN', token },
+          { type: 'ZEAL_IFRAME_TOKEN', token, merchant_id: merchantId },
           vendorOrigin
         )
       }
@@ -140,17 +140,33 @@ function App() {
 
     window.addEventListener('message', handleMessage)
     return () => window.removeEventListener('message', handleMessage)
-  }, [trimmedBaseUrl])
+  }, [trimmedBaseUrl, token, merchantId])
 
   return (
     <div className="app">
       <header className="topbar">
         <input
-          className="navInput"
+          className="navInput navInput-base-url"
           type="url"
           value={baseUrl}
           onChange={(event) => setBaseUrl(event.target.value)}
           placeholder="https://staging.vendor-portal.example.com"
+        />
+
+        <input
+          className="navInput navInput--token"
+          type="text"
+          value={token}
+          onChange={(event) => setToken(event.target.value)}
+          placeholder="Token"
+        />
+
+        <input
+          className="navInput navInput--merchant"
+          type="text"
+          value={merchantId}
+          onChange={(event) => setMerchantId(event.target.value)}
+          placeholder="Merchant ID"
         />
 
         <select
@@ -164,23 +180,6 @@ function App() {
             </option>
           ))}
         </select>
-
-        <div className="topbarUrl">
-          <div className="urlPreview">
-            {iframeUrl ||
-              'Iframe URL will appear here once the base URL is valid.'}
-          </div>
-          {iframeUrl ? (
-            <a
-              href={iframeUrl}
-              target="_blank"
-              rel="noreferrer"
-              className="openLink"
-            >
-              Open
-            </a>
-          ) : null}
-        </div>
       </header>
 
       <div className="contentLayout">

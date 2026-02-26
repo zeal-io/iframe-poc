@@ -206,6 +206,18 @@
   background: #f8fafc;
 }
 
+.navInput-base-url {
+  flex: 0 1 50%;
+}
+
+.navInput--token {
+  flex: 0 1 20%;
+}
+
+.navInput--merchant {
+  flex: 0 1 20%;
+}
+
 .navSelect {
   flex: 0 0 110px;
   border: 1px solid #cbd5f5;
