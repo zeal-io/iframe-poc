@@ -175,7 +175,7 @@ function App() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
+          'X-Api-Key': token,
         },
         body: JSON.stringify({ merchant_id: merchantId }),
       })
