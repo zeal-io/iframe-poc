@@ -197,12 +197,12 @@
 }
 
 .navInput {
-  flex: 1.2;
+  flex: 0 1 220px;
   min-width: 0;
   border: 1px solid #cbd5f5;
-  border-radius: 999px;
-  padding: 6px 10px;
-  font-size: 13px;
+  border-radius: 6px;
+  padding: 4px 8px;
+  font-size: 12px;
   background: #f8fafc;
 }
 
@@ -225,6 +225,23 @@
   padding: 6px 10px;
   font-size: 13px;
   background: #f8fafc;
+}
+
+.navButton {
+  flex: 0 0 auto;
+  border-radius: 6px;
+  border: 1px solid #cbd5f5;
+  padding: 4px 10px;
+  font-size: 12px;
+  background: #111827;
+  color: #ffffff;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.navButton:disabled {
+  opacity: 0.6;
+  cursor: default;
 }
 
 .topbarUrl {

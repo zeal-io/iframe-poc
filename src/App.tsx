@@ -33,11 +33,6 @@ const SECTIONS = [
     label: 'Card machines',
     subtabs: [
       {
-        id: 'all',
-        label: 'All card machines',
-        path: '/card-machines/card-machines',
-      },
-      {
         id: 'customise',
         label: 'Customise',
         path: '/card-machines/customise',
@@ -48,6 +43,12 @@ const SECTIONS = [
 
 type Section = (typeof SECTIONS)[number]
 type Subtab = Section['subtabs'][number]
+
+type ThirdPartyAuthResponse = {
+  token?: string
+  refresh_token?: string | null
+  expires_at?: string | null
+}
 
 const buildIframeUrl = (baseUrl: string, path: string, lang: string) => {
   if (!baseUrl) {
@@ -68,8 +69,9 @@ const buildIframeUrl = (baseUrl: string, path: string, lang: string) => {
 function App() {
   const [baseUrl, setBaseUrl] = useState(DEFAULT_BASE_URL)
   const [language, setLanguage] = useState(DEFAULT_LANGUAGE)
-  const [token, setToken] = useState('')
-  const [merchantId, setMerchantId] = useState('')
+  const [token, setToken] = useState('2vu6txLPYjdNZr6AtmAfv5vjRPYxP9Thc6ygdEyeJngzDREt2XAvXL5VUJykvTyC')
+  const [merchantId, setMerchantId] = useState('46086c91-68f5-4a5a-bed5-cab009e99134')
+  const [authTokens, setAuthTokens] = useState<ThirdPartyAuthResponse | null>(null)
   const [activeSectionId, setActiveSectionId] =
     useState<Section['id']>('customers')
   const [activeSubtabId, setActiveSubtabId] =
@@ -122,17 +124,15 @@ function App() {
       if (event.origin !== vendorOrigin) return
       if (!event.data || typeof event.data !== 'object') return
 
-      const { type, url, lang } = event.data as {
+      const { type } = event.data as {
         type?: string
         url?: string
         lang?: string
       }
 
-      console.log('Received message from iframe', { event, url, lang })
-
-      if (type === 'ZEAL_IFRAME_READY') {
+      if (type === 'ZEAL_IFRAME_READY' && authTokens?.token) {
         iframeRef.current?.contentWindow?.postMessage(
-          { type: 'ZEAL_IFRAME_TOKEN', token, merchant_id: merchantId },
+          { type: 'ZEAL_IFRAME_TOKEN', ...authTokens },
           vendorOrigin
         )
       }
@@ -140,7 +140,76 @@ function App() {
 
     window.addEventListener('message', handleMessage)
     return () => window.removeEventListener('message', handleMessage)
-  }, [trimmedBaseUrl, token, merchantId])
+  }, [trimmedBaseUrl, authTokens])
+
+  const handleAuthenticate = async () => {
+    if (!trimmedBaseUrl || !token || !merchantId) {
+      return
+    }
+
+    
+    // setAuthTokens({ token: '50652|IqwfZrNHTBH6HxoTTC6UfqI6d5JfEyKrgzg6j6hHb40247d0'})
+    // iframeRef.current?.contentWindow?.postMessage(
+    //     { type: 'ZEAL_IFRAME_TOKEN', token: '50652|IqwfZrNHTBH6HxoTTC6UfqI6d5JfEyKrgzg6j6hHb40247d0' },
+    //     trimmedBaseUrl
+    //   )
+    // return
+
+    const apiBase =
+      (import.meta.env.VITE_PUBLIC_VENDOR_URL as string | undefined)?.trim() ||
+      trimmedBaseUrl
+
+    let apiUrl: string
+    try {
+      apiUrl = new URL(
+        '/api/third-party/auth-token',
+        apiBase
+      ).toString()
+    } catch {
+      console.error('Invalid vendor API base URL', apiBase)
+      return
+    }
+
+    try {
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ merchant_id: merchantId }),
+      })
+
+      if (!response.ok) {
+        console.error('Auth token request failed', response.status)
+        return
+      }
+
+      const data: ThirdPartyAuthResponse = await response.json()
+      setAuthTokens(data)
+
+      let vendorOrigin: string
+      try {
+        vendorOrigin = new URL(trimmedBaseUrl).origin
+      } catch {
+        return
+      }
+
+      iframeRef.current?.contentWindow?.postMessage(
+        { type: 'ZEAL_IFRAME_TOKEN', ...data },
+        vendorOrigin
+      )
+    } catch (error) {
+      console.error('Auth token request error', error)
+    }
+  }
+
+  useEffect(() => {
+    if (!trimmedBaseUrl || !token.trim() || !merchantId.trim()) return
+    handleAuthenticate()
+    // Only re-auth when base URL changes; token/merchantId are read from closure
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [trimmedBaseUrl])
 
   return (
     <div className="app">
